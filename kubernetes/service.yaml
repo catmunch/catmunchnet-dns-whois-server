@@ -12,8 +12,10 @@ spec:
     - protocol: UDP
       port: 53
       targetPort: dns
+      name: dns
     - protocol: TCP
       port: 43
       targetPort: whois
+      name: whois
   type: LoadBalancer
   loadBalancerIP: 10.53.53.53

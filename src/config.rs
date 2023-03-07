@@ -26,4 +26,8 @@ pub struct Config {
     /// Update interval (in seconds)
     #[clap(long, short = 'i', default_value = "300", env = "INTERVAL")]
     pub interval: u64,
+
+    /// K8S Node Name
+    #[clap(long, default_value = "Default Node", env = "K8S_NODE_NAME")]
+    pub node_name: String,
 }

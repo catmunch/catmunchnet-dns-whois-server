@@ -37,9 +37,14 @@ spec:
                 secretKeyRef:
                   name: catmunchnet-registry
                   key: git_repo
+            - name: K8S_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           ports:
             - containerPort: 53
               name: dns
+              protocol: UDP
             - containerPort: 43
               name: whois
       terminationGracePeriodSeconds: 1

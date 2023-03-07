@@ -22,7 +22,7 @@ where
 }
 
 static WHOIS_REQUEST_MAX_LENGTH: u64 = 128;
-async fn handle_whois_request(mut socket: TcpStream, store: Box<dyn Store>) {
+async fn handle_whois_request(mut socket: TcpStream, store: Box<dyn Store>, config: Box<Config>) {
     lazy_static! {
         static ref ASN_REGEX: Regex = Regex::new(r"^as(\d+)$").unwrap();
         static ref DOMAIN_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9-_]+\.catmunch$").unwrap();
@@ -38,7 +38,9 @@ async fn handle_whois_request(mut socket: TcpStream, store: Box<dyn Store>) {
     }
     let request = request.trim().to_lowercase();
     let mut response = format!("No match for {}\r\n", request);
-    if ASN_REGEX.is_match(request.as_str()) {
+    if request == "whoami" {
+        response = config.node_name.clone();
+    } else if ASN_REGEX.is_match(request.as_str()) {
         let result = store.get_autnum(request.to_uppercase());
         if result.is_some() {
             response = serde_yaml::to_string(&result.unwrap()).unwrap();
@@ -78,15 +80,18 @@ async fn handle_whois_request(mut socket: TcpStream, store: Box<dyn Store>) {
 
 pub async fn run_whois_server(config: &Config, store: Box<dyn Store>) -> Result<(), Error> {
     let mut loops = Vec::new();
+    let config_box = Box::new(config.clone());
     for addr in &config.whois {
         let listener = TcpListener::bind(addr).await?;
         let store = store.clone();
+        let config_box = config_box.clone();
         loops.push(tokio::spawn(async move {
             loop {
                 let store = store.clone();
+                let config_box = config_box.clone();
                 match listener.accept().await {
                     Ok((socket, _)) => {
-                        tokio::spawn(async move { handle_whois_request(socket, store).await });
+                        tokio::spawn(async move { handle_whois_request(socket, store, config_box).await });
                     }
                     Err(_) => {}
                 }
