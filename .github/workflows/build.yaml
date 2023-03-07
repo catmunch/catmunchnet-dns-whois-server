@@ -30,7 +30,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: name/app
+          images: ghcr.io/catmunch/catmunchnet-dns-whois-server
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
