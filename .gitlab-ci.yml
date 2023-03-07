@@ -1,12 +1,18 @@
 build_docker_image:
   stage: build
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
+  image: quay.io/buildah/stable
+  variables:
+    STORAGE_DRIVER: vfs
+    BUILDAH_FORMAT: docker
+    BUILDAH_ISOLATION: chroot
+  before_script:
+    - export REGISTRY_AUTH_FILE=$HOME/auth.json
+    - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
   script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG --cache=true
+    - buildah manifest create multiarch
+    - buildah bud --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" --manifest multiarch --arch amd64 $CI_PROJECT_DIR
+    - buildah bud --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" --manifest multiarch --arch arm64 $CI_PROJECT_DIR
+    - buildah manifest push --all multiarch "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
   rules:
     - if: $CI_COMMIT_TAG
 
