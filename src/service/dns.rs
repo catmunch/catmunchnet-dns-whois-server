@@ -8,9 +8,8 @@ use std::str::FromStr;
 use log::info;
 use tokio::net::UdpSocket;
 use trust_dns_server::authority::MessageResponseBuilder;
-use trust_dns_server::client::rr::LowerName;
 use trust_dns_server::proto::op::{Header, MessageType, OpCode, ResponseCode};
-use trust_dns_server::proto::rr::{IntoName, Name, RData, Record};
+use trust_dns_server::proto::rr::{IntoName, Name, RData, rdata, Record, LowerName};
 use trust_dns_server::server::{Request, RequestHandler, ResponseHandler, ResponseInfo};
 use trust_dns_server::ServerFuture;
 
@@ -57,8 +56,7 @@ impl Handler {
     ) -> Result<ResponseInfo, Error> {
         let name = request.query().name();
         let builder = MessageResponseBuilder::from_message_request(request);
-        let mut header = Header::response_from_request(request.header());
-        header.set_authoritative(true);
+        let header = Header::response_from_request(request.header());
         let domain_name = name.into_name().unwrap().trim_to(2);
         let mut domain_str = domain_name.to_string();
         domain_str.pop(); // remove the '.'
@@ -71,20 +69,20 @@ impl Handler {
                     nameservers.push(Record::from_rdata(
                         domain_name.clone(),
                         300,
-                        RData::NS(name.clone()),
+                        RData::NS(rdata::NS(ns.server.parse().unwrap())),
                     ));
                     if ns.a.is_some() {
                         additional_records.push(Record::from_rdata(
                             name.clone(),
                             300,
-                            RData::A(ns.a.unwrap()),
+                            RData::A(rdata::A(ns.a.unwrap())),
                         ));
                     }
                     if ns.aaaa.is_some() {
                         additional_records.push(Record::from_rdata(
                             name.clone(),
                             300,
-                            RData::AAAA(ns.aaaa.unwrap()),
+                            RData::AAAA(rdata::AAAA(ns.aaaa.unwrap())),
                         ));
                     }
                 });
@@ -110,8 +108,7 @@ impl Handler {
     ) -> Result<ResponseInfo, Error> {
         let name = request.query().name();
         let builder = MessageResponseBuilder::from_message_request(request);
-        let mut header = Header::response_from_request(request.header());
-        header.set_authoritative(true);
+        let header = Header::response_from_request(request.header());
         let mut parts = convert_name_to_vec(name);
         parts.pop(); // pop arpa
         parts.pop(); // pop in-addr
@@ -162,20 +159,20 @@ impl Handler {
                 nameservers.push(Record::from_rdata(
                     cidr_domain_name.clone(),
                     300,
-                    RData::NS(ns_name.clone()),
+                    RData::NS(rdata::NS(ns_name.clone())),
                 ));
                 if ns.a.is_some() {
                     additional_records.push(Record::from_rdata(
                         ns_name.clone(),
                         300,
-                        RData::A(ns.a.unwrap()),
+                        RData::A(rdata::A(ns.a.unwrap())),
                     ));
                 }
                 if ns.aaaa.is_some() {
                     additional_records.push(Record::from_rdata(
                         ns_name.clone(),
                         300,
-                        RData::AAAA(ns.aaaa.unwrap()),
+                        RData::AAAA(rdata::AAAA(ns.aaaa.unwrap())),
                     ));
                 }
             });
@@ -196,8 +193,7 @@ impl Handler {
     ) -> Result<ResponseInfo, Error> {
         let name = request.query().name();
         let builder = MessageResponseBuilder::from_message_request(request);
-        let mut header = Header::response_from_request(request.header());
-        header.set_authoritative(true);
+        let header = Header::response_from_request(request.header());
         let mut parts = convert_name_to_vec(name);
         parts.pop(); // pop arpa
         parts.pop(); // pop ip6
@@ -259,20 +255,20 @@ impl Handler {
                 nameservers.push(Record::from_rdata(
                     cidr_domain_name.clone(),
                     300,
-                    RData::NS(ns_name.clone()),
+                    RData::NS(rdata::NS(ns_name.clone())),
                 ));
                 if ns.a.is_some() {
                     additional_records.push(Record::from_rdata(
                         ns_name.clone(),
                         300,
-                        RData::A(ns.a.unwrap()),
+                        RData::A(rdata::A(ns.a.unwrap())),
                     ));
                 }
                 if ns.aaaa.is_some() {
                     additional_records.push(Record::from_rdata(
                         ns_name.clone(),
                         300,
-                        RData::AAAA(ns.aaaa.unwrap()),
+                        RData::AAAA(rdata::AAAA(ns.aaaa.unwrap())),
                     ));
                 }
             });

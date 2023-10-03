@@ -6,16 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cidr = "0.2.1"
-clap = { version = "4.1.4", features = ["derive", "env"] }
-tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread", "net"] }
-git2 = "0.16.1"
-trust-dns-server = "0.22.0"
-async-trait = "0.1.64"
-log = "0.4.17"
+cidr = "0.2.2"
+clap = { version = "4.4.6", features = ["derive", "env"] }
+tokio = { version = "1.32.0", features = ["macros", "rt-multi-thread", "net"] }
+git2 = "0.18.1"
+trust-dns-server = "0.23.0"
+trust-dns-client = "0.23.0"
+async-trait = "0.1.73"
+log = "0.4.20"
 env_logger = "0.10.0"
-serde = "1.0.152"
-serde_yaml = "0.9.17"
-futures-util = "0.3.26"
-regex = "1.7.1"
+serde = "1.0.188"
+serde_yaml = "0.9.25"
+futures-util = "0.3.28"
+regex = "1.9.6"
 lazy_static = "1.4.0"

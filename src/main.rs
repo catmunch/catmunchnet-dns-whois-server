@@ -20,6 +20,7 @@ mod util;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    info!("test");
     env_logger::init();
     let config = Config::parse();
     let mut source: Box<dyn DataSource> = Box::new(GitDataSource::new(config.clone()));
