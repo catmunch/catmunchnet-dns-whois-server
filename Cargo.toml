@@ -28,3 +28,6 @@ simple-error = "0.3.0"
 [profile.release]
 strip = true
 lto = true
+
+[target.aarch64-unknown-linux-musl]
+linker = "aarch64-linux-gcc"

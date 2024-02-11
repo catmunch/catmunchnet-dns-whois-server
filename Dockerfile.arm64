@@ -1,0 +1,23 @@
+FROM rustlang/rust:nightly as builder
+
+ARG TARGETARCH
+WORKDIR /src
+
+RUN apt-get update && apt-get install -y ca-certificates
+COPY src /src/src
+COPY Cargo* /src/
+RUN CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse cargo build --release
+
+FROM debian:bullseye-slim
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /src/target/release/dns-whois-server /app/dns-whois-server
+
+ENV DNS_ADDR "127.0.0.1:1053"
+ENV WHOIS_ADDR "0.0.0.0:43"
+ENV RUST_LOG "info"
+
+EXPOSE 1053
+EXPOSE 43
+EXPOSE 8080
+
+CMD ["/app/dns-whois-server"]
