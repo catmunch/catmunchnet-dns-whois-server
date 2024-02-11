@@ -1,3 +1,4 @@
+use std::io;
 use crate::config::Config;
 use crate::store::Store;
 use cidr::{Ipv4Cidr, Ipv6Cidr};
@@ -7,20 +8,36 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use log::info;
 use tokio::net::UdpSocket;
-use trust_dns_server::authority::MessageResponseBuilder;
-use trust_dns_server::proto::op::{Header, MessageType, OpCode, ResponseCode};
-use trust_dns_server::proto::rr::{IntoName, Name, RData, rdata, Record, LowerName};
-use trust_dns_server::server::{Request, RequestHandler, ResponseHandler, ResponseInfo};
-use trust_dns_server::ServerFuture;
+use tokio::select;
+use tokio_util::sync::CancellationToken;
+use hickory_server::authority::MessageResponseBuilder;
+use hickory_server::proto::op::{Header, MessageType, OpCode, ResponseCode};
+use hickory_server::proto::rr::{IntoName, Name, RData, rdata, Record, LowerName};
+use hickory_server::server::{Request, RequestHandler, ResponseHandler, ResponseInfo};
+use hickory_server::ServerFuture;
+use crate::resource::domain::NS;
 
-pub async fn run_dns_server(config: &Config, store: Box<dyn Store>) -> Result<(), Error> {
+pub async fn run_dns_server(config: &Config, store: Box<dyn Store>, cancellation_token: CancellationToken) -> io::Result<()> {
     let handler = Handler::new(store);
     let mut server = ServerFuture::new(handler);
     for addr in &config.dns {
         server.register_socket(UdpSocket::bind(addr).await?);
     }
     info!("DNS server started.");
-    server.block_until_done().await?;
+    select! {
+        _ = cancellation_token.cancelled() => {
+            server.shutdown_gracefully().await.unwrap();
+        }
+        res = server.block_until_done() => {
+            match res {
+                Err(e) => {
+                    panic!("DNS server stopped with error: {}", e);
+                }
+                Ok(()) => {}
+            }
+        }
+    }
+    info!("DNS server shut down.");
     Ok(())
 }
 struct Handler {
@@ -32,6 +49,33 @@ fn convert_name_to_vec(name: &LowerName) -> Vec<String> {
         .iter()
         .map(|v| String::from_utf8_lossy(&v.to_vec()).to_string())
         .collect()
+}
+fn append_ns_record(domain_name: &Name, ns_record: &NS, nameservers: &mut Vec<Record>, additional_records: &mut Vec<Record>) {
+    let ns_name = Name::from_str(ns_record.server.as_str()).unwrap();
+    nameservers.push(Record::from_rdata(
+        domain_name.clone(),
+        300,
+        RData::NS(rdata::NS(ns_record.server.parse().unwrap())),
+    ));
+    if ns_record.a.is_some() {
+        additional_records.push(Record::from_rdata(
+            ns_name.clone(),
+            300,
+            RData::A(rdata::A(ns_record.a.unwrap())),
+        ));
+    }
+    if ns_record.aaaa.is_some() {
+        additional_records.push(Record::from_rdata(
+            ns_name.clone(),
+            300,
+            RData::AAAA(rdata::AAAA(ns_record.aaaa.unwrap())),
+        ));
+    }
+}
+fn append_ns_records(domain_name: &Name, ns_records: &Vec<NS>, nameservers: &mut Vec<Record>, additional_records: &mut Vec<Record>){
+    ns_records.iter().for_each(|ns| {
+        append_ns_record(domain_name, ns, nameservers, additional_records);
+    });
 }
 impl Handler {
     fn new(store: Box<dyn Store>) -> Self {
@@ -49,6 +93,7 @@ impl Handler {
         let response = builder.build_no_records(header);
         response_handle.send_response(response).await
     }
+
     async fn do_handle_request_domain<R: ResponseHandler>(
         &self,
         request: &Request,
@@ -64,28 +109,7 @@ impl Handler {
             Some(domain) => {
                 let mut nameservers: Vec<Record> = vec![];
                 let mut additional_records: Vec<Record> = vec![];
-                domain.ns.iter().for_each(|ns| {
-                    let name = Name::from_str(ns.server.as_str()).unwrap();
-                    nameservers.push(Record::from_rdata(
-                        domain_name.clone(),
-                        300,
-                        RData::NS(rdata::NS(ns.server.parse().unwrap())),
-                    ));
-                    if ns.a.is_some() {
-                        additional_records.push(Record::from_rdata(
-                            name.clone(),
-                            300,
-                            RData::A(rdata::A(ns.a.unwrap())),
-                        ));
-                    }
-                    if ns.aaaa.is_some() {
-                        additional_records.push(Record::from_rdata(
-                            name.clone(),
-                            300,
-                            RData::AAAA(rdata::AAAA(ns.aaaa.unwrap())),
-                        ));
-                    }
-                });
+                append_ns_records(&domain_name, &domain.ns, &mut nameservers, &mut additional_records);
                 let response = builder.build(
                     header,
                     &[],
@@ -149,33 +173,15 @@ impl Handler {
         }
         let mut nameservers: Vec<Record> = vec![];
         let mut additional_records: Vec<Record> = vec![];
-        if prefixes[0].ns.is_some() {
-            prefixes[0].ns.as_ref().unwrap().iter().for_each(|ns| {
+        match &prefixes[0].ns {
+            Some(ns_records) => {
                 let cidr_domain_name = name
                     .into_name()
                     .unwrap()
                     .trim_to(((prefixes[0].cidr.network_length() + 7) / 8 + 2) as usize);
-                let ns_name = Name::from_str(ns.server.as_str()).unwrap();
-                nameservers.push(Record::from_rdata(
-                    cidr_domain_name.clone(),
-                    300,
-                    RData::NS(rdata::NS(ns_name.clone())),
-                ));
-                if ns.a.is_some() {
-                    additional_records.push(Record::from_rdata(
-                        ns_name.clone(),
-                        300,
-                        RData::A(rdata::A(ns.a.unwrap())),
-                    ));
-                }
-                if ns.aaaa.is_some() {
-                    additional_records.push(Record::from_rdata(
-                        ns_name.clone(),
-                        300,
-                        RData::AAAA(rdata::AAAA(ns.aaaa.unwrap())),
-                    ));
-                }
-            });
+                append_ns_records(&cidr_domain_name, ns_records, &mut nameservers, &mut additional_records);
+            }
+            _ => {}
         }
         let response = builder.build(
             header,
@@ -245,33 +251,15 @@ impl Handler {
         }
         let mut nameservers: Vec<Record> = vec![];
         let mut additional_records: Vec<Record> = vec![];
-        if prefixes[0].ns.is_some() {
-            prefixes[0].ns.as_ref().unwrap().iter().for_each(|ns| {
+        match &prefixes[0].ns {
+            Some(ns_records) => {
                 let cidr_domain_name = name
                     .into_name()
                     .unwrap()
                     .trim_to(((prefixes[0].cidr.network_length() + 3) / 4 + 2) as usize);
-                let ns_name = Name::from_str(ns.server.as_str()).unwrap();
-                nameservers.push(Record::from_rdata(
-                    cidr_domain_name.clone(),
-                    300,
-                    RData::NS(rdata::NS(ns_name.clone())),
-                ));
-                if ns.a.is_some() {
-                    additional_records.push(Record::from_rdata(
-                        ns_name.clone(),
-                        300,
-                        RData::A(rdata::A(ns.a.unwrap())),
-                    ));
-                }
-                if ns.aaaa.is_some() {
-                    additional_records.push(Record::from_rdata(
-                        ns_name.clone(),
-                        300,
-                        RData::AAAA(rdata::AAAA(ns.aaaa.unwrap())),
-                    ));
-                }
-            });
+                append_ns_records(&cidr_domain_name, ns_records, &mut nameservers, &mut additional_records);
+            }
+            _ => {}
         }
         let response = builder.build(
             header,
@@ -328,13 +316,10 @@ impl RequestHandler for Handler {
         request: &Request,
         mut response_handle: R,
     ) -> ResponseInfo {
-        match self.do_handle_request(request, &mut response_handle).await {
-            Ok(response) => response,
-            Err(_) => {
-                let mut header = Header::new();
-                header.set_response_code(ResponseCode::ServFail);
-                header.into()
-            }
-        }
+        self.do_handle_request(request, &mut response_handle).await.unwrap_or_else(|_| {
+            let mut header = Header::new();
+            header.set_response_code(ResponseCode::ServFail);
+            header.into()
+        })
     }
 }

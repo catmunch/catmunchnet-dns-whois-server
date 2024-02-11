@@ -1,3 +1,4 @@
+use std::io;
 use crate::config::Config;
 use crate::store::Store;
 use cidr::{Ipv4Cidr, Ipv6Cidr};
@@ -5,11 +6,12 @@ use futures_util::future;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Serialize;
-use std::io::Error;
 use std::str::FromStr;
 use log::info;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::select;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Serialize)]
 struct IPResponse<S, T>
@@ -78,27 +80,37 @@ async fn handle_whois_request(mut socket: TcpStream, store: Box<dyn Store>, conf
     let _ = socket.write(response.as_bytes()).await;
 }
 
-pub async fn run_whois_server(config: &Config, store: Box<dyn Store>) -> Result<(), Error> {
+pub async fn run_whois_server(config: &Config, store: Box<dyn Store>, cancellation_token: CancellationToken) -> io::Result<()> {
     let mut loops = Vec::new();
     let config_box = Box::new(config.clone());
     for addr in &config.whois {
         let listener = TcpListener::bind(addr).await?;
         let store = store.clone();
         let config_box = config_box.clone();
+        let token_copy = cancellation_token.clone();
         loops.push(tokio::spawn(async move {
             loop {
                 let store = store.clone();
                 let config_box = config_box.clone();
-                match listener.accept().await {
-                    Ok((socket, _)) => {
-                        tokio::spawn(async move { handle_whois_request(socket, store, config_box).await });
+                select! {
+                    res = listener.accept() => {
+                        match res {
+                            Ok(_) => {
+                                let (stream, _) = res.unwrap();
+                                tokio::spawn(async move { handle_whois_request(stream, store, config_box).await });
+                            }
+                            Err(_) => {}
+                        }
                     }
-                    Err(_) => {}
+                    _ = token_copy.cancelled() => {
+                        break
+                    }
                 }
             }
         }))
     }
     info!("WHOIS server started.");
     let _ = future::select_all(loops).await;
+    info!("WHOIS server shut down.");
     Ok(())
 }

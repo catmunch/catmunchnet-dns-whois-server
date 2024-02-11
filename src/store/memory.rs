@@ -19,6 +19,7 @@ pub struct MemoryStore {
     domains: Arc<RwLock<HashMap<String, Domain>>>,
     trie4: Arc<RwLock<IPTrie>>,
     trie6: Arc<RwLock<IPTrie>>,
+    ready: bool,
 }
 
 impl MemoryStore {
@@ -28,6 +29,7 @@ impl MemoryStore {
             domains: Arc::new(RwLock::new(HashMap::new())),
             trie4: Arc::new(RwLock::new(IPTrie::new())),
             trie6: Arc::new(RwLock::new(IPTrie::new())),
+            ready: false
         }
     }
 }
@@ -57,6 +59,7 @@ impl Store for MemoryStore {
         *self.domains.write().unwrap() = domains;
         *self.trie4.write().unwrap() = trie4;
         *self.trie6.write().unwrap() = trie6;
+        self.ready = true;
     }
 
     fn get_autnum(&self, autnum: String) -> Option<Autnum> {
@@ -127,5 +130,9 @@ impl Store for MemoryStore {
 
     fn clone_dyn(&self) -> Box<dyn Store> {
         Box::new(self.clone())
+    }
+
+    fn is_ready(&self) -> bool {
+        self.ready
     }
 }

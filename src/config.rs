@@ -30,4 +30,8 @@ pub struct Config {
     /// K8S Node Name
     #[clap(long, default_value = "Default Node", env = "K8S_NODE_NAME")]
     pub node_name: String,
+
+    /// Health Check Port
+    #[clap(long, default_value = "8080", env = "HEALTH_CHECK_PORT")]
+    pub health_check_port: u16
 }

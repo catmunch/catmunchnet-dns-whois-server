@@ -1,4 +1,4 @@
-name: Build image
+name: Build unbound image
 
 on:
   push:
@@ -30,11 +30,12 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ghcr.io/catmunch/catmunchnet-dns-whois-server
+          images: ghcr.io/catmunch/catmunchnet-dns-whois-server-unbound
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
           context: .
+          file: Dockerfile-unbound
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

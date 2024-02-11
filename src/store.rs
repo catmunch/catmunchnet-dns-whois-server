@@ -16,6 +16,7 @@ pub trait Store: Send + Sync {
     fn get_inetnum_prefixes(&self, inetnum: Ipv4Cidr) -> (Vec<Inetnum>, Vec<Route>);
     fn get_inet6num_prefixes(&self, inet6num: Ipv6Cidr) -> (Vec<Inet6num>, Vec<Route6>);
     fn clone_dyn(&self) -> Box<dyn Store>;
+    fn is_ready(&self) -> bool;
 }
 
 impl Clone for Box<dyn Store> {

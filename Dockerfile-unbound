@@ -1,0 +1,7 @@
+FROM alpine:3.19
+RUN apk add --no-cache unbound
+COPY docker/unbound.conf /etc/unbound/
+
+EXPOSE 53
+
+CMD ["/usr/sbin/unbound", "-d", "-v"]

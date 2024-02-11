@@ -28,9 +28,9 @@ spec:
           image: registry.starcatmeow.cn/catmunch-networking/dns-whois-server:VERSION_TAG
           resources:
             limits:
-              memory: 128Mi
+              memory: 64Mi
             requests:
-              memory: 32Mi
+              memory: 8Mi
           env:
             - name: GIT_REPO
               valueFrom:
@@ -42,9 +42,29 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
           ports:
-            - containerPort: 53
-              name: dns
+            - containerPort: 1053
+              name: auth-dns
               protocol: UDP
             - containerPort: 43
               name: whois
-      terminationGracePeriodSeconds: 1
+            - containerPort: 8080
+              name: healthcheck
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthcheck
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            failureThreshold: 1
+        - name: unbound
+          image: registry.starcatmeow.cn/catmunch-networking/dns-whois-server-unbound:VERSION_TAG
+          resources:
+            limits:
+              memory: 64Mi
+            requests:
+              memory: 8Mi
+          ports:
+            - containerPort: 53
+              name: dns
+              protocol: UDP
+      terminationGracePeriodSeconds: 10
