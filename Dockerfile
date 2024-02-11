@@ -1,12 +1,19 @@
 FROM rustlang/rust:nightly as builder
 
+ARG TARGETARCH
 WORKDIR /src
 
 RUN apt-get update && apt-get install -y musl-tools ca-certificates
-RUN rustup target add x86_64-unknown-linux-musl
+RUN if [ "x$TARGETARCH" = "xamd64" ] ; \
+    then rustup target add x86_64-unknown-linux-musl ; \
+    else rustup target add aarch64-unknown-linux-musl ; \
+    fi
 COPY src /src/src
 COPY Cargo* /src/
-RUN CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse cargo build --release --target x86_64-unknown-linux-musl
+RUN if [ "x$TARGETARCH" = "xamd64" ] ; \
+    then CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse cargo build --release --target x86_64-unknown-linux-musl ; \
+    else CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse cargo build --release --target aarch64-unknown-linux-musl ; \
+    fi
 
 FROM scratch
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
