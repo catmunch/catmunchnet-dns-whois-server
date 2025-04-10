@@ -1,4 +1,4 @@
-FROM rustlang/rust:nightly as builder
+FROM rustlang/rust:nightly-bookworm as builder
 
 ARG TARGETARCH
 WORKDIR /src
@@ -8,7 +8,7 @@ COPY src /src/src
 COPY Cargo* /src/
 RUN CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse cargo build --release
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /src/target/release/dns-whois-server /app/dns-whois-server
 
